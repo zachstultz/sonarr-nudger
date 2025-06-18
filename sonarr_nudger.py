@@ -30,7 +30,7 @@ def force_grab_queued_item(item_id: int):
         response = requests.post(api_endpoint, headers=headers)
         response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
         print(f"\tSuccessfully sent grab command for item ID {item_id}.")
-        return True  # Or just True if you don't need the response body
+        return True
     except requests.exceptions.RequestException as e:
         print(f"\tError making direct API call to Sonarr for item ID {item_id}: {e}")
         if response is not None:
