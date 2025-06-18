@@ -92,10 +92,10 @@ def main():
                                     # Use the direct API call
                                     grab_result = force_grab_queued_item(item["id"])
                                     if grab_result:
-                                        print(f"\tDownload started for '{title}'.")
+                                        print(f"\tDownload started for '{title}'.\n")
                                     else:
                                         print(
-                                            f"\tFailed to start download for '{title}' via direct API call."
+                                            f"\tFailed to start download for '{title}' via direct API call.\n"
                                         )
                                     break  # Move to the next item once a match is found and acted upon
 
