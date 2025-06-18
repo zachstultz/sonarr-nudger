@@ -11,4 +11,5 @@ SONARR_API_KEY = ""
 # EX: r"Keyword or Regex"
 REGEX_PATTERNS = []
 
-WAIT_TIME = 60  # Time to wait between checks in seconds
+# Time to wait between checks in seconds
+WAIT_TIME = 60
