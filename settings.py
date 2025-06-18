@@ -1,5 +1,6 @@
 # Replace with your Sonarr URL
 SONARR_URL = ""  # ex: http://localhost:8989
+
 # Replace with your Sonarr API key
 SONARR_API_KEY = ""
 
