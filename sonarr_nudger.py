@@ -13,20 +13,15 @@ def force_grab_queued_item(item_id: int):
     """
     headers = {
         "X-Api-Key": SONARR_API_KEY,
-        # Content-Type is not strictly needed if there's no JSON payload,
-        # but it's good practice for POST requests.
-        # However, since the ID is in the URL, we might not send an explicit JSON body.
-        # Let's keep it just in case Sonarr prefers it.
         "Content-Type": "application/json",
     }
 
     # Construct the API endpoint with the item ID directly in the path
     api_endpoint = f"{SONARR_URL}/api/v3/queue/grab/{item_id}"
 
+    # Send the POST request
     print(f"\tAttempting direct API POST call to: {api_endpoint}")
     try:
-        # For a POST request with the ID in the URL, the 'json' parameter might not be strictly needed,
-        # but some APIs are forgiving. The critical part is the URL and method.
         response = requests.post(api_endpoint, headers=headers)
         response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
         print(f"\tSuccessfully sent grab command for item ID {item_id}.")
@@ -66,43 +61,80 @@ def main():
         print("\tSuccessfully connected to Sonarr.")
     except Exception as e:
         print(f"\tError connecting to Sonarr: {e}")
-        print("\tPlease check your Sonarr URL and API key.")
+        print("\tPlease check your Sonarr URL and API key in settings.py.")
         return
 
     print("\tMonitoring the queue for matches...")
+    first_run = False
 
     while True:
         try:
+            if not first_run:
+                first_run = True
+            else:
+                time.sleep(WAIT_TIME)  # Wait for 1 minute
+
             queue = sonarr.get_queue()
 
-            if queue.get("records", []):
-                for item in queue.get("records", []):
-                    # Check if the item has not started downloading
-                    # The 'status' can vary, common statuses for queued but not downloading
-                    # items include 'Queued', 'Pending'. You may need to adjust this
-                    # based on your download client and Sonarr setup.
-                    if item.get("status") in ["delay"]:
-                        title = item.get("title")
-                        if title:
-                            for pattern in REGEX_PATTERNS:
-                                if re.search(pattern, title, re.IGNORECASE):
-                                    print(
-                                        f"\tMatch found for '{title}' with pattern '{pattern}'."
-                                    )
-                                    # Use the direct API call
-                                    grab_result = force_grab_queued_item(item["id"])
-                                    if grab_result:
-                                        print(f"\tDownload started for '{title}'.\n")
-                                    else:
-                                        print(
-                                            f"\tFailed to start download for '{title}' via direct API call.\n"
-                                        )
-                                    break  # Move to the next item once a match is found and acted upon
+            # Check if the queue is empty
+            if not queue.get("records", []):
+                continue
+
+            for item in queue.get("records", []):
+                # Skip items that are not delayed
+                if not item.get("status") in ["delay"]:
+                    continue
+
+                title = item.get("title")
+
+                # Skip if no title is available
+                if not title:
+                    continue
+
+                for regex_pattern in REGEX_PATTERNS:
+                    if regex_pattern.languages:
+                        # Get the languages from the queued item
+                        languages = item.get("languages", [])
+
+                        # Skip if no languages are specified
+                        if not languages:
+                            continue
+
+                        language_names = [
+                            lang.get("name", "").lower() for lang in languages
+                        ]
+
+                        regex_languages_lower = [
+                            lang.lower() for lang in regex_pattern.languages
+                        ]
+
+                        # If there isn't a language present in both, then skip, otherwise continue
+                        language_match = any(
+                            lang.lower() in language_names
+                            for lang in regex_languages_lower
+                        )
+
+                        if not language_match:
+                            continue
+
+                    if regex_pattern.pattern in title or re.search(
+                        regex_pattern.pattern, title, re.IGNORECASE
+                    ):
+                        print(
+                            f"\tMatch found for '{title}' with pattern '{regex_pattern.pattern}'."
+                        )
+                        # Use the direct API call
+                        grab_result = force_grab_queued_item(item["id"])
+                        if grab_result:
+                            print(f"\tDownload started for '{title}'.\n")
+                        else:
+                            print(
+                                f"\tFailed to start download for '{title}' via direct API call.\n"
+                            )
+                        break  # Move to the next item once a match is found and acted upon
 
         except Exception as e:
             print(f"\tAn error occurred while checking the queue: {e}")
-
-        time.sleep(WAIT_TIME)  # Wait for 1 minute
 
 
 if __name__ == "__main__":
