@@ -91,6 +91,11 @@ def main():
                 if not title:
                     continue
 
+                # Make sure the item still exists in Sonarr
+                if item not in sonarr.get_queue().get("records", []):
+                    print(f"\tItem '{title}' no longer exists in the queue. Skipping.")
+                    continue
+
                 for regex_pattern in REGEX_PATTERNS:
                     if regex_pattern.languages:
                         # Get the languages from the queued item
