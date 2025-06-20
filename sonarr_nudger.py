@@ -91,8 +91,14 @@ def main():
                 if not title:
                     continue
 
+                titles = [
+                    record.get("title")
+                    for record in sonarr.get_queue().get("records", [])
+                    if record.get("title")
+                ]
+
                 # Make sure the item still exists in Sonarr
-                if item not in sonarr.get_queue().get("records", []):
+                if item.get("title") not in titles:
                     continue
 
                 for regex_pattern in REGEX_PATTERNS:
