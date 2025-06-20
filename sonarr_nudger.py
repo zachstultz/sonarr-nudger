@@ -93,7 +93,6 @@ def main():
 
                 # Make sure the item still exists in Sonarr
                 if item not in sonarr.get_queue().get("records", []):
-                    print(f"\tItem '{title}' no longer exists in the queue. Skipping.")
                     continue
 
                 for regex_pattern in REGEX_PATTERNS:
