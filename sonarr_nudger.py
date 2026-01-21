@@ -42,21 +42,21 @@ def main():
     """
 
     # Check if the necessary settings are provided
-    if not SONARR_URL:
-        print("Error: SONARR_URL is not set in settings.py.")
-        return
-    if not SONARR_API_KEY:
-        print("Error: SONARR_API_KEY is not set in settings.py.")
-        return
-    if not REGEX_PATTERNS:
-        print("Error: REGEX_PATTERNS is empty in settings.py.")
-        return
+    for setting_name, setting_value in {
+        "SONARR_URL": SONARR_URL,
+        "SONARR_API_KEY": SONARR_API_KEY,
+        "REGEX_PATTERNS": REGEX_PATTERNS,
+    }.items():
+        if not setting_value:
+            status = "empty" if setting_name == "REGEX_PATTERNS" else "not set"
+            print(f"Error: {setting_name} is {status} in settings.py.")
+            return
 
     print("--- Sonarr Queue Checker Initialized ---")
     print(f"\tConnecting to Sonarr at: {SONARR_URL}")
+    sonarr = SonarrAPI(SONARR_URL, SONARR_API_KEY)
 
     try:
-        sonarr = SonarrAPI(SONARR_URL, SONARR_API_KEY)
         # Test the connection by retrieving system status
         sonarr.get_system_status()
         print("\tSuccessfully connected to Sonarr.")
@@ -73,15 +73,16 @@ def main():
             if not first_run:
                 first_run = True
             else:
-                time.sleep(WAIT_TIME)  # Wait for 1 minute
+                time.sleep(WAIT_TIME)
 
             queue = sonarr.get_queue()
+            records = queue.get("records", [])
 
             # Check if the queue is empty
-            if not queue.get("records", []):
+            if not records:
                 continue
 
-            for item in queue.get("records", []):
+            for item in records:
                 # Skip items that are not delayed
                 if not item.get("status") in ["delay"]:
                     continue
@@ -93,9 +94,7 @@ def main():
                     continue
 
                 titles = [
-                    record.get("title")
-                    for record in sonarr.get_queue().get("records", [])
-                    if record.get("title")
+                    record.get("title") for record in records if record.get("title")
                 ]
 
                 # Make sure the item still exists in Sonarr
@@ -146,6 +145,17 @@ def main():
 
         except Exception as e:
             print(f"\tAn error occurred while checking the queue: {e}")
+            time.sleep(WAIT_TIME)
+
+            # Try to reconnect to Sonarr
+            while True:
+                try:
+                    sonarr.get_system_status()
+                    print("\tSuccessfully reconnected to Sonarr.")
+                    break
+                except Exception as reconnect_error:
+                    print(f"\tReconnection attempt failed: {reconnect_error}")
+                    time.sleep(WAIT_TIME)
 
 
 if __name__ == "__main__":
