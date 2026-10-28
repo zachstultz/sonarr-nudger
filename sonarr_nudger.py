@@ -25,7 +25,6 @@ def force_grab_queued_item(item_id: int, on_version_five: bool):
 
     print(f"\tAttempting direct API POST call to: {api_endpoint}")
     response = None
-
     try:
         response = requests.post(api_endpoint, headers=headers)
         response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
@@ -138,7 +137,9 @@ def main():
                             f"\tMatch found for '{title}' with pattern '{regex_pattern.pattern}'."
                         )
                         # Use the direct API call
-                        grab_result = force_grab_queued_item(item["id"])
+                        grab_result = force_grab_queued_item(
+                            item["id"], on_version_five
+                        )
                         if grab_result:
                             print(f"\tDownload started for '{title}'.\n")
                         else:
