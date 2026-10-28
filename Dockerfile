@@ -24,9 +24,10 @@ RUN umask "$UMASK"
 # Copy the current directory contents into the container at /app
 COPY --chown=appuser:appuser . .
 
-# Install necessary packages
+# Install necessary packages and requirements for the main script
 RUN apt-get update
 RUN apt-get install -y tzdata
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Remove unnecessary packages and clean up
 RUN apt-get autoremove -y
