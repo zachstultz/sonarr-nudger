@@ -2,32 +2,63 @@
 import requests
 import time
 import re
-from pyarr import SonarrAPI
 
 from settings import *
 
 
-def force_grab_queued_item(item_id: int, on_version_five: bool):
-    """
-    Makes a direct API POST call to Sonarr's endpoint
+BASE = f"{SONARR_URL}/api/v5"
+H = {"X-Api-Key": SONARR_API_KEY}
 
+
+def get_system_status():
+    """
+    Retrieves Sonarr system status via the v5 API.
+    Returns the status dict on success, raises on failure.
+
+    GET /api/v5/system/status
+    """
+    r = requests.get(f"{BASE}/system/status", headers=H, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+def get_queue():
+    """
+    Retrieves all queued items from Sonarr via the v5 paged /queue endpoint.
+    Returns a list of queue record dicts (each with a numeric 'id' field
+    required by the grab endpoint).
+
+    GET /api/v5/queue
+    """
+    r = requests.get(
+        f"{BASE}/queue",
+        headers=H,
+        timeout=30,
+        params={"pageSize": 1000, "includeUnknownSeriesItems": "true"},
+    )
+    r.raise_for_status()
+    return r.json().get("records", [])
+
+
+def force_grab_queued_item(item_id: int):
+    """
+    Makes a direct API POST call to Sonarr's v5 endpoint
     to force a grab for a queued item.
 
+    POST /api/v5/queue/grab/{id}
     """
     headers = {
         "X-Api-Key": SONARR_API_KEY,
         "Content-Type": "application/json",
     }
 
-    # Construct the API endpoint with the item ID directly in the path
-    api_version = "v5" if on_version_five else "v3"
-    api_endpoint = f"{SONARR_URL}/api/{api_version}/queue/grab/{item_id}"
+    api_endpoint = f"{BASE}/queue/grab/{item_id}"
 
     print(f"\tAttempting direct API POST call to: {api_endpoint}")
     response = None
     try:
         response = requests.post(api_endpoint, headers=headers)
-        response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+        response.raise_for_status()
         print(f"\tSuccessfully sent grab command for item ID {item_id}.")
         return True
     except requests.exceptions.RequestException as e:
@@ -57,12 +88,12 @@ def main():
 
     print("--- Sonarr Queue Checker Initialized ---")
     print(f"\tConnecting to Sonarr at: {SONARR_URL}")
-    sonarr = SonarrAPI(SONARR_URL, SONARR_API_KEY)
 
     try:
         # Test the connection by retrieving system status
-        sonarr.get_system_status()
-        print("\tSuccessfully connected to Sonarr.")
+        system_status = get_system_status()
+        version = system_status.get("version", "unknown")
+        print(f"\tSuccessfully connected to Sonarr (version: {version}).")
     except Exception as e:
         print(f"\tError connecting to Sonarr: {e}")
         print("\tPlease check your Sonarr URL and API key in settings.py.")
@@ -78,30 +109,27 @@ def main():
             else:
                 time.sleep(WAIT_TIME)
 
-            queue = sonarr.get_queue()
-            records = queue.get("records", [])
+            records = get_queue()
 
             # Check if the queue is empty
             if not records:
                 continue
 
             for item in records:
-                # Skip items that are not delayed
-                if not item.get("status") in ["delay"]:
+                # In Sonarr v5 the relevant delay flag lives in
+                # trackedDownloadState; fall back to checking status as well
+                # for forward-compatibility.
+                is_delayed = (
+                    item.get("trackedDownloadState") == "delay"
+                    or item.get("status") == "delay"
+                )
+                if not is_delayed:
                     continue
 
                 title = item.get("title")
 
                 # Skip if no title is available
                 if not title:
-                    continue
-
-                titles = [
-                    record.get("title") for record in records if record.get("title")
-                ]
-
-                # Make sure the item still exists in Sonarr
-                if item.get("title") not in titles:
                     continue
 
                 for regex_pattern in REGEX_PATTERNS:
@@ -137,9 +165,7 @@ def main():
                             f"\tMatch found for '{title}' with pattern '{regex_pattern.pattern}'."
                         )
                         # Use the direct API call
-                        grab_result = force_grab_queued_item(
-                            item["id"], on_version_five
-                        )
+                        grab_result = force_grab_queued_item(item["id"])
                         if grab_result:
                             print(f"\tDownload started for '{title}'.\n")
                         else:
@@ -155,7 +181,7 @@ def main():
             # Try to reconnect to Sonarr
             while True:
                 try:
-                    sonarr.get_system_status()
+                    get_system_status()
                     print("\tSuccessfully reconnected to Sonarr.")
                     break
                 except Exception as reconnect_error:
