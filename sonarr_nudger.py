@@ -7,10 +7,12 @@ from pyarr import SonarrAPI
 from settings import *
 
 
-def force_grab_queued_item(item_id: int):
+def force_grab_queued_item(item_id: int, on_version_five: bool):
     """
-    Makes a direct API POST call to Sonarr's /api/v3/queue/grab/{id} endpoint
+    Makes a direct API POST call to Sonarr's endpoint
+
     to force a grab for a queued item.
+
     """
     headers = {
         "X-Api-Key": SONARR_API_KEY,
@@ -18,10 +20,12 @@ def force_grab_queued_item(item_id: int):
     }
 
     # Construct the API endpoint with the item ID directly in the path
-    api_endpoint = f"{SONARR_URL}/api/v3/queue/grab/{item_id}"
+    api_version = "v5" if on_version_five else "v3"
+    api_endpoint = f"{SONARR_URL}/api/{api_version}/queue/grab/{item_id}"
 
-    # Send the POST request
     print(f"\tAttempting direct API POST call to: {api_endpoint}")
+    response = None
+
     try:
         response = requests.post(api_endpoint, headers=headers)
         response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
